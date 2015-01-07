@@ -1,6 +1,12 @@
 ### This script reads in all Ameriflux files in a directory, either gapfilled or with_gaps, and produces 2 files:
 ### a concatenated 30 minute file, and a concatenated daily file. The daily file variables are bare bones at this point,
 ### producing only SITE, YEAR, and DOY columns. This is simple placeholder.
+### 
+### Author: Dan Krofcheck
+### Email: djkrofch@unm.edu
+### Date Modified: 07 - Jan - 2015
+
+### ---------------- Input Parameters -------------------------- ###
 
 # First specify the directory where the data are located
 dataDir <- '/home/nikko/Research/Data/TowerData/AmerifluxFiles/'
@@ -9,6 +15,15 @@ dataDir <- '/home/nikko/Research/Data/TowerData/AmerifluxFiles/'
 # Here, we are just specifying a pattern that exists in the file names which
 # differentiates the files from one another
 fileType <- 'gapfilled'
+
+# Specify the column names we want to appear in the daily file
+# Currently, edits here require edits inside the dailyfile
+# Need to have the loop dynamically generated via a function, using this list as inputs ultimately.
+dailynames <- c('SITE','YEAR','DOY','TA_mean','TA_min','TA_max','FC','FC_day','FC_night','H','LE','PRECIP',
+	'RH','PA','VPD_day','VPD_day_min','VPD_day_max','RNET','PAR','Rg','Rg_out','Rlong_in','Rlong_out',
+	'RE','GPP','GAP_qual')
+
+### ------------------------------------------------------------ ###
 
 # Generate a list of file names that exist in our data directory 
 fileList  <- list.files(dataDir, pattern = fileType)
@@ -30,6 +45,7 @@ sitename <- split2[[1]][1] # picks only the first chunk of the second split
 
 # Finally, create a new dataframe with a new column 'SITE' having the value 'sitename' for all of its rows
 AmfluxFile <- data.frame(firstFile, SITE = sitename)
+AmfluxFile[AmfluxFile == -9999] <- NaN
 
 # Now we will loop through every file in our list and concatenate them to eachother, as well as add the site column to each one as we go.
 for(i in 1:length(fileList)){
@@ -50,28 +66,62 @@ for(i in 1:length(fileList)){
 
     # Append the sitename
     fluxfile <- data.frame(fluxfile, SITE = sitename)
+    fluxfile[fluxfile == -9999] <- NaN
 
-# Specify the column names we want to appear in the daily file
-    dailynames <- c('SITE','YEAR','DOY')
 
     # To create the daily files, we need to first figure out how many days are in each file (as this will determine the row numbers).
     numdays <- max(fluxfile$DOY)
     dailyfile <- data.frame(matrix(nrow = numdays, ncol = length(dailynames)))
     names(dailyfile) <- dailynames
 
+    ### ----------- Daily Amflux File Generation ------------ ###
+
     for(d in 1:numdays){ 
 	message(paste('processing day', d, 'of', numdays),"\r",appendLF=FALSE)
+
+	# Subset only the rows for a single day
 	thisday <- fluxfile[which(fluxfile$DOY == d),]
+
+	# Subset rows within this day that are daylight only, determine the length of that variable
+	daytime <- thisday[which(thisday$Rg > 10), ]
+	nighttime <- thisday[which(thisday$Rg <= 11), ]
+	day_obs <- length(daytime$DOY)
+
 	dailyfile[d,1] <- sitename 
 	dailyfile[d,2] <- thisday$YEAR[1]
 	dailyfile[d,3] <- d
+	dailyfile[d,4] <- mean(thisday$TA, na.rm = TRUE)
+	dailyfile[d,5] <- min(thisday$TA, na.rm = TRUE)
+	dailyfile[d,6] <- max(thisday$TA, na.rm = TRUE)
+	dailyfile[d,7] <- mean(thisday$FC, na.rm = TRUE)
+	dailyfile[d,8] <- mean(daytime$FC, na.rm = TRUE)
+	dailyfile[d,9] <- mean(nighttime$FC, na.rm = TRUE)
+	dailyfile[d,10] <- mean(daytime$H, na.rm = TRUE) 
+	dailyfile[d,11] <- mean(daytime$LE, na.rm = TRUE)
+	dailyfile[d,12] <- sum(thisday$PRECIP)
+	dailyfile[d,13] <- mean(thisday$RH, na.rm = TRUE)
+	dailyfile[d,14] <- mean(thisday$RH, na.rm = TRUE)
+	dailyfile[d,15] <- mean(daytime$VPD, na.rm = TRUE)
+	dailyfile[d,16] <- min(daytime$VPD, na.rm = TRUE)
+	dailyfile[d,17] <- max(daytime$VPD, na.rm = TRUE)
+	dailyfile[d,18] <- sum(thisday$RNET)
+	dailyfile[d,19] <- sum(thisday$PAR)
+	dailyfile[d,20] <- sum(thisday$Rg)
+	dailyfile[d,21] <- sum(thisday$Rg_out)
+	dailyfile[d,22] <- sum(thisday$Rlong_in)
+	dailyfile[d,23] <- sum(thisday$Rlong_out)
+	dailyfile[d,24] <- sum(thisday$RE)
+	dailyfile[d,25] <- sum(thisday$GPP)
+	dailyfile[d,26] <- sum(thisday$FC_flag) / 48
 
 
     } 
 
+    ### ----------------------------------------------------- ###
+
 # This if/else block is how we are growing the variable AmfluxFileDaily over time, and still initialize the first pass of the loop to a clean dataframe with the right dimensions (note here however there is no limit for the number of rows we are allowing the variable to become, which can cause some issues. Ideally we would preallocate the entire thing, and this step would not be required (and our code would be a bit faster).
 
-    if(i == 1){ #note here, the loop iterator (i) is in reference to the outer loop. This indexes the number of the Amerifluxfile we have opened currently.
+    if(i == 1){ # Here, the loop iterator (i) is in reference to the outer loop. This indexes the number of the Amerifluxfile we have opened currently.
 	AmfluxFileDaily <- dailyfile
     }else{
 	AmfluxFileDaily <- rbind(AmfluxFileDaily, dailyfile)
