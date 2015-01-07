@@ -1,4 +1,6 @@
-### This script is designed to simply read Ameriflux formatted files and concatenate the results into a single csv. 
+### This script reads in all Ameriflux files in a directory, either gapfilled or with_gaps, and produces 2 files:
+### a concatenated 30 minute file, and a concatenated daily file. The daily file variables are bare bones at this point,
+### producing only SITE, YEAR, and DOY columns. This is simple placeholder.
 
 # First specify the directory where the data are located
 dataDir <- '/home/nikko/Research/Data/TowerData/AmerifluxFiles/'
@@ -49,9 +51,37 @@ for(i in 1:length(fileList)){
     # Append the sitename
     fluxfile <- data.frame(fluxfile, SITE = sitename)
 
+# Specify the column names we want to appear in the daily file
+    dailynames <- c('SITE','YEAR','DOY')
+
+    # To create the daily files, we need to first figure out how many days are in each file (as this will determine the row numbers).
+    numdays <- max(fluxfile$DOY)
+    dailyfile <- data.frame(matrix(nrow = numdays, ncol = length(dailynames)))
+    names(dailyfile) <- dailynames
+
+    for(d in 1:numdays){ 
+	message(paste('processing day', d, 'of', numdays),"\r",appendLF=FALSE)
+	thisday <- fluxfile[which(fluxfile$DOY == d),]
+	dailyfile[d,1] <- sitename 
+	dailyfile[d,2] <- thisday$YEAR[1]
+	dailyfile[d,3] <- d
+
+
+    } 
+
+# This if/else block is how we are growing the variable AmfluxFileDaily over time, and still initialize the first pass of the loop to a clean dataframe with the right dimensions (note here however there is no limit for the number of rows we are allowing the variable to become, which can cause some issues. Ideally we would preallocate the entire thing, and this step would not be required (and our code would be a bit faster).
+
+    if(i == 1){ #note here, the loop iterator (i) is in reference to the outer loop. This indexes the number of the Amerifluxfile we have opened currently.
+	AmfluxFileDaily <- dailyfile
+    }else{
+	AmfluxFileDaily <- rbind(AmfluxFileDaily, dailyfile)
+    }
     # rbind() or concatenate by row, our first file, and the new file. Note here that we call this variable the same thing as our first variable. In this way it grows with every iteration of the loop. Not the best programming practice but it does the trick.
     AmfluxFile <- rbind(AmfluxFile, fluxfile)
 }
 
 # Finally, write the result to a single csv. Here, the row.names argument stops R from including a pesky first column of numerical row numbers.. which is of no use for us. This will be a large text file, ane may take some time to write.
+message('Writing concatenated 30 minute file', "\r", appendLF=FALSE)
 write.table(AmfluxFile, 'AllAmfluxData_30min_Reichstein.csv', sep = ',', row.names = FALSE)
+message('Writing concatenated daily file', "\r", appendLF=FALSE)
+write.table(AmfluxFileDaily, 'AllAmfluxData_Daily_Reichstein.csv', sep = ',', row.names = FALSE)
