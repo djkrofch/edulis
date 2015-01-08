@@ -5,3 +5,7 @@ This is a small repository of data analysis scripts written in R and Python, str
 ## WIP
 
 Currently, this repository serves a backup only purpose, and over time the contents will grow and evolve, ultimatley serving as a distribution source for small analysys projects. 
+
+## amfluxDataReader.R
+
+A bit of a misnomer at this point, this script simply reads in all of the Ameriflux files in a directory into the R workspace one at a time, concatenating the files in the process into a single variable. The 'SITE' variable is also appended as part of the loop iteration. During the concatenation process, a concatenated daily file is also created, with a host of commonly desired variables included. Its not very fancy but it works for the time being. 
