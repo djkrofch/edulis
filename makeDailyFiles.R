@@ -21,7 +21,7 @@ fileType <- 'gapfilled'
 # Need to have the loop dynamically generated via a function, using this list as inputs ultimately.
 dailynames <- c('SITE','YEAR','DOY','TA_mean','TA_min','TA_max','FC','FC_day','FC_night','H','LE','PRECIP',
 	'RH','PA','VPD_day','VPD_day_min','VPD_day_max','RNET','PAR','Rg','Rg_out','Rlong_in','Rlong_out',
-	'RE','GPP','GAP_qual')
+	'RE','GPP','GAP_qual','LUE','WUE')
 
 ### ------------------------------------------------------------ ###
 
@@ -116,6 +116,8 @@ for(i in 1:length(fileList)){
 	dailyfile[d,24] <- sum(thisday$RE * convert)
 	dailyfile[d,25] <- sum(thisday$GPP * convert)
 	dailyfile[d,26] <- sum(thisday$FC_flag) / 48
+	dailyfile[d,27] <- sum(thisday$GPP * convert) / sum(thisday$RG)
+	dailyfile[d,28] <- NaN # Placeholder for WUE -- requires ET calculations (and PET)
 
 
     } 
