@@ -99,8 +99,8 @@ for(i in 1:length(fileList)){
 	dailyfile[d,7] <- sum(thisday$FC * convert, na.rm = TRUE)
 	dailyfile[d,8] <- sum(daytime$FC, na.rm = TRUE)
 	dailyfile[d,9] <- sum(nighttime$FC, na.rm = TRUE)
-	dailyfile[d,10] <- mean(daytime$H, na.rm = TRUE) 
-	dailyfile[d,11] <- mean(daytime$LE, na.rm = TRUE)
+	dailyfile[d,10] <- sum(daytime$H, na.rm = TRUE) 
+	dailyfile[d,11] <- sum(daytime$LE, na.rm = TRUE)
 	dailyfile[d,12] <- sum(thisday$PRECIP)
 	dailyfile[d,13] <- mean(thisday$RH, na.rm = TRUE)
 	dailyfile[d,14] <- mean(thisday$RH, na.rm = TRUE)
@@ -117,9 +117,36 @@ for(i in 1:length(fileList)){
 	dailyfile[d,25] <- sum(thisday$GPP * convert)
 	dailyfile[d,26] <- sum(thisday$FC_flag) / 48
 	dailyfile[d,27] <- sum(thisday$GPP * convert) / sum(thisday$RG)
-	dailyfile[d,28] <- NaN # Placeholder for WUE -- requires ET calculations (and PET)
 
+	# ET calculation
+	# lambda - value of vapor latent heat flux
+	lambda = 2501-2.4*dailyfile[d,4]
 
+	# ET (mm)
+	ET = sum(day_obs * 1800 * daytime$LE / (1000 *lambda), na.rm = TRUE)
+	
+	# H and LE, just referenced from the daily file above, for equation clarity
+	H = dailyfile[d,10]
+	LE = dailyfile[d,11]
+
+	# Priestly-Taylor constant
+	alphaPT = 1.26
+
+	# Saturation vapor pressure temp curve (Tetens, 1930)
+	slopeSAT = (2508.3 / (dailyfile[d,4] + 237.3)^2) * exp(17.3 * dailyfile[d,4] / (dailyfile[d,4] + 237.3))
+
+	# Psychometric constant (kPa / degC)
+	PSI = 0.066
+
+	# LE potential and ET potential (from Priestly-Taylor). Note here, Rn-G is substituted with H + LE
+	LEpot = alphaPT *(slopeSAT* (H + LE) / (slopeSAT + PSI))
+	ETpot = LEpot * 1800 * day_obs / (1000 * lambda)
+	
+	# Write the ET related variables to the daily file
+	
+	dailyfile[d,28] <- sum(thisday$GPP * convert) / ET 
+	dailyfile[d,29] <- ET
+	dailyfile[d,30] <- ETpot
     } 
 
     ### ----------------------------------------------------- ###
