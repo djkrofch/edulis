@@ -21,7 +21,7 @@ fileType <- 'gapfilled'
 # Need to have the loop dynamically generated via a function, using this list as inputs ultimately.
 dailynames <- c('SITE','YEAR','DOY','TA_mean','TA_min','TA_max','FC','FC_day','FC_night','H','LE','PRECIP',
 	'RH','PA','VPD_day','VPD_day_min','VPD_day_max','RNET','PAR','Rg','Rg_out','Rlong_in','Rlong_out',
-	'RE','GPP','GAP_qual','LUE','WUE')
+	'RE','GPP','GAP_qual','LUE','WUE', 'ET','PET')
 
 ### ------------------------------------------------------------ ###
 
@@ -97,37 +97,37 @@ for(i in 1:length(fileList)){
 	dailyfile[d,5] <- min(thisday$TA, na.rm = TRUE)
 	dailyfile[d,6] <- max(thisday$TA, na.rm = TRUE)
 	dailyfile[d,7] <- sum(thisday$FC * convert, na.rm = TRUE)
-	dailyfile[d,8] <- sum(daytime$FC, na.rm = TRUE)
-	dailyfile[d,9] <- sum(nighttime$FC, na.rm = TRUE)
-	dailyfile[d,10] <- sum(daytime$H, na.rm = TRUE) 
-	dailyfile[d,11] <- sum(daytime$LE, na.rm = TRUE)
-	dailyfile[d,12] <- sum(thisday$PRECIP)
+	dailyfile[d,8] <- sum(daytime$FC * convert, na.rm = TRUE)
+	dailyfile[d,9] <- sum(nighttime$FC * convert, na.rm = TRUE)
+	dailyfile[d,10] <- mean(daytime$H, na.rm = TRUE) 
+	dailyfile[d,11] <- mean(daytime$LE, na.rm = TRUE)
+	dailyfile[d,12] <- sum(thisday$PRECIP, na.rm = TRUE)
 	dailyfile[d,13] <- mean(thisday$RH, na.rm = TRUE)
 	dailyfile[d,14] <- mean(thisday$RH, na.rm = TRUE)
 	dailyfile[d,15] <- mean(daytime$VPD, na.rm = TRUE)
 	dailyfile[d,16] <- min(daytime$VPD, na.rm = TRUE)
 	dailyfile[d,17] <- max(daytime$VPD, na.rm = TRUE)
-	dailyfile[d,18] <- sum(thisday$RNET)
-	dailyfile[d,19] <- sum(thisday$PAR)
-	dailyfile[d,20] <- sum(thisday$Rg)
-	dailyfile[d,21] <- sum(thisday$Rg_out)
-	dailyfile[d,22] <- sum(thisday$Rlong_in)
-	dailyfile[d,23] <- sum(thisday$Rlong_out)
-	dailyfile[d,24] <- sum(thisday$RE * convert)
-	dailyfile[d,25] <- sum(thisday$GPP * convert)
+	dailyfile[d,18] <- sum(thisday$RNET, na.rm = TRUE)
+	dailyfile[d,19] <- sum(thisday$PAR, na.rm = TRUE)
+	dailyfile[d,20] <- sum(thisday$Rg, na.rm = TRUE)
+	dailyfile[d,21] <- sum(thisday$Rg_out, na.rm = TRUE)
+	dailyfile[d,22] <- sum(thisday$Rlong_in, na.rm = TRUE)
+	dailyfile[d,23] <- sum(thisday$Rlong_out, na.rm = TRUE)
+	dailyfile[d,24] <- sum(thisday$RE * convert, na.rm = TRUE)
+	dailyfile[d,25] <- sum(thisday$GPP * convert, na.rm = TRUE)
 	dailyfile[d,26] <- sum(thisday$FC_flag) / 48
-	dailyfile[d,27] <- sum(thisday$GPP * convert) / sum(thisday$RG)
+	dailyfile[d,27] <- sum(thisday$GPP * convert) / sum(thisday$Rg)
 
 	# ET calculation
 	# lambda - value of vapor latent heat flux
 	lambda = 2501-2.4*dailyfile[d,4]
 
-	# ET (mm)
-	ET = sum(day_obs * 1800 * daytime$LE / (1000 *lambda), na.rm = TRUE)
-	
 	# H and LE, just referenced from the daily file above, for equation clarity
 	H = dailyfile[d,10]
 	LE = dailyfile[d,11]
+
+	# ET (mm)
+	ET = sum(day_obs * 1800 * LE / (1000 *lambda), na.rm = TRUE)
 
 	# Priestly-Taylor constant
 	alphaPT = 1.26
