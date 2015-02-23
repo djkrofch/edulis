@@ -8,6 +8,8 @@
 ### Email: djkrofch@unm.edu
 ### Date Modified: 23 - Feb - 2015
 
+library(numDeriv)
+
 
 
 ### ---------------- Input Data -------------------------- ###
@@ -25,6 +27,14 @@ fileType <- 'gapfilled'
 # and merge it with the daily file after the Ameriflux file processing is complete.
 gapfilled_precip <- 'dailyprecip.csv'
 
+# Constants which are used for various steps of the calulations below
+SECONDS_PER_HOUR <- 60*60
+LV_WATER <- 2.257e6;      # J Kg-1
+CP_DRY_AIR <- 1006;   # J Kg-1 K-1
+STEFAN_BOLTZMANN_CONST <- 5.670373e-8; #J s-1 m−2 K−4
+GRAMS_C_PER_MICROEINSTEIN<- 12.01 * SECONDS_PER_HOUR / 1000000 # gC per 30 minute flux interval
+Rd <- 286.9 # dry air gas const; J Kg-1 K-1
+Rw <- 461.5; # water vapor gas const; J Kg-1 K-1
 
 ### ---------------- Function Definitions ---------------------- ###
 
@@ -32,13 +42,88 @@ gapfilled_precip <- 'dailyprecip.csv'
 # calculations, and (although not yet implemented) the Priestly-Taylor
 # calculations for ET and PET. Current the P-T calculations are done in-line
 # and will be moved up here for organization reasons later on.
+#
+# Also need to move these function definitions from this file into another
+# script, and included as a package --- on the TO DO list.
+#
+# These functions all come from joint work by Tim Hilton, and Andy Fox
 
-
-
-calc_eta <- function(, arg2, ... ){
-statements
-return(object)
+get_es <- function( T ){
+T_s <- 373.16 # steam_point temperature (K)
+log_10_e <- ( -7.90298 * ( ( T_s/ T ) - 1 ) ) + 
+    5.02808 * log10( T_s / T ) - 
+    1.3816e-7 * 10^( 11.344 * ( 1 - ( T / T_s ) ) - 1 ) + 
+    8.1328e-3 * 10^( ( -3.49149 * ( ( T_s / T ) - 1 ) ) - 1 ) + 
+    log10( 1013.246 )
+e_s <- 10^(log_10_e)
+return(e_s)
 }
+
+calc_albedo <- function(ROut, RIn){
+albedo <- ROut / RIn
+return(albedo)
+}
+
+calc_emissivity <- function(albedo){
+epsilon <- -0.16 * albedo + 0.99
+return(epsilon)
+}
+
+calc_Ts <- function(epsilon, RLong_Out){
+Ts <- (RLong_out / (STEFAN_BOLTZMANN_CONST * epsilon)) ^ (0.25)
+Ts <- Ts - 273.15 # Convert K to degC
+return(Ts)
+}
+
+calc_moist_air_density <- function( T, p, RH ){
+epsilon <- Rd / Rw
+w <- (calc_ws(T, p) / 100 ) * RH # Mixing ratio of water vapor
+e <- (w / (w + epsilon) ) * p # Vapor pressure
+rho <- (p / (Rd * T)) * (1 - (( e / p) * (1 - epsilon))) # Wallace & Hobbs eqs 2.13 - 2.16
+return(rho)
+}
+
+calc_ws <- function(T, p ){
+epsilon <- Rd / Rw
+e_s <- get_es(T)
+w_s <- epsilon * (e_s / (p - e_s)) # Wallace & Hobbs eqs 2.64 and 2.14
+return(w_s)
+}
+
+calc_cp <- function(T, p, RH){
+w_s <- calc_ws( T, p ) # saturation water vapor mixing ratio
+w <- ( RH / 100 ) * w_s # water vator mixing ratio, Wallace & Hobbs eq. 2.66
+c_p <- CP_DRY_AIR * ( 1.0 + ( 0.84 * w ) ); # Stull eq. 3.2
+return(c_p)
+}
+
+calc_delta <- function(T_a){
+#T_ref <- ( -50:1:100 ) + 273.15  # -50C to 100C converted to K
+#es_kPa <- get_es( T_ref ) / 10.0 # saturation vapor pressure in kPa
+#des_dt <- grad( es_kPa , T_ref )
+#delta <- approx( T_ref, des_dt, T_a + 273.15 )
+slopeSAT <- (2508.3 / (T_a + 237.3)^2) * exp(17.3 * T_a / (T_a + 237.3)) # temporary calc
+return(slopeSAT)
+}
+
+calc_ga <- function(T_a, p, RH, H, T_s){
+c_p =1024;
+c_p = calc_cp( T_a + 273.15, P, RH );
+ga = H / ( rho * c_p * ( T_s - T_a ) )
+return(ga)
+}
+
+calc_eta <- function(T_a, p, RH){
+c_p <- calc_cp( T_a + 273.15, p, RH )
+c_p <- 1024;
+gamma <- c_p / LV_WATER; # pyschrometric constant
+delta <- calc_delta( T_a )
+rho <- calc_moist_air_density(T_a, p, RH)
+eta <- ( rho * c_p * ga ) / 
+      ( 1 - ( obj.alpha_PT * ( delta / ( delta  + gamma ) ) ) )
+return(eta)
+}
+
 
 # Specify the column names we want to appear in the daily file
 # Currently, edits here require edits inside the dailyfile
@@ -98,9 +183,6 @@ for(i in 1:length(fileList)){
     dailyfile <- data.frame(matrix(nrow = numdays, ncol = length(dailynames)))
     names(dailyfile) <- dailynames
 
-    # umol/m2/s conversion to gC for carbon fluxes
-    convert <- 12.01 * 1800 / 1000000 # gC per 30 minute flux interval
-
     ### ----------- Daily Amflux File Generation ------------ ###
 
     for(d in 1:numdays){ 
@@ -120,14 +202,14 @@ for(i in 1:length(fileList)){
 	dailyfile[d,4] <- mean(thisday$TA, na.rm = TRUE)
 	dailyfile[d,5] <- min(thisday$TA, na.rm = TRUE)
 	dailyfile[d,6] <- max(thisday$TA, na.rm = TRUE)
-	dailyfile[d,7] <- sum(thisday$FC * convert, na.rm = TRUE)
-	dailyfile[d,8] <- sum(daytime$FC * convert, na.rm = TRUE)
-	dailyfile[d,9] <- sum(nighttime$FC * convert, na.rm = TRUE)
+	dailyfile[d,7] <- sum(thisday$FC * GRAMS_C_PER_MICROEINSTEIN, na.rm = TRUE)
+	dailyfile[d,8] <- sum(daytime$FC * GRAMS_C_PER_MICROEINSTEIN, na.rm = TRUE)
+	dailyfile[d,9] <- sum(nighttime$FC * GRAMS_C_PER_MICROEINSTEIN, na.rm = TRUE)
 	dailyfile[d,10] <- mean(daytime$H, na.rm = TRUE) 
 	dailyfile[d,11] <- mean(daytime$LE, na.rm = TRUE)
 	dailyfile[d,12] <- sum(thisday$PRECIP, na.rm = TRUE)
 	dailyfile[d,13] <- mean(thisday$RH, na.rm = TRUE)
-	dailyfile[d,14] <- mean(thisday$RH, na.rm = TRUE)
+	dailyfile[d,14] <- mean(thisday$PA, na.rm = TRUE)
 	dailyfile[d,15] <- mean(daytime$VPD, na.rm = TRUE)
 	dailyfile[d,16] <- min(daytime$VPD, na.rm = TRUE)
 	dailyfile[d,17] <- max(daytime$VPD, na.rm = TRUE)
@@ -137,10 +219,10 @@ for(i in 1:length(fileList)){
 	dailyfile[d,21] <- sum(thisday$Rg_out, na.rm = TRUE)
 	dailyfile[d,22] <- sum(thisday$Rlong_in, na.rm = TRUE)
 	dailyfile[d,23] <- sum(thisday$Rlong_out, na.rm = TRUE)
-	dailyfile[d,24] <- sum(thisday$RE * convert, na.rm = TRUE)
-	dailyfile[d,25] <- sum(thisday$GPP * convert, na.rm = TRUE)
+	dailyfile[d,24] <- sum(thisday$RE * GRAMS_C_PER_MICROEINSTEIN, na.rm = TRUE)
+	dailyfile[d,25] <- sum(thisday$GPP * GRAMS_C_PER_MICROEINSTEIN, na.rm = TRUE)
 	dailyfile[d,26] <- sum(thisday$FC_flag) / 48
-	dailyfile[d,27] <- sum(thisday$GPP * convert) / sum(thisday$Rg)
+	dailyfile[d,27] <- sum(thisday$GPP * GRAMS_C_PER_MICROEINSTEIN) / sum(thisday$Rg)
 
 	# ET calculation
 	# lambda - value of vapor latent heat flux
@@ -168,30 +250,9 @@ for(i in 1:length(fileList)){
 	
 	# Write the ET related variables to the daily file
 	
-	dailyfile[d,28] <- sum(thisday$GPP * convert) / ET 
+	dailyfile[d,28] <- sum(thisday$GPP * GRAMS_C_PER_MICROEINSTEIN) / ET 
 	dailyfile[d,29] <- ET
 	dailyfile[d,30] <- ETpot
-
-
-	# Penman-Monteith (inverted) to get out surface and canopy conductances - NEED UNITS
-	rho_a <- 1.225 # density of dry air (10 deg C, sea level --- not ideal, need to replace!)
-	c_p <- 1024 # specific heat of air at constant temperature -- not ideal, need to replace!
-	lam <- LE # latent heat of vaporization of water
-	rho_w <- 1000 # Kg m^-3  density of water
-	vpd <- dailyfile[d, 15] # vapor pressure deficit
-	ga <- 0.033 # aerodynamic conductance (from Zhang et al., 2008 -- needs to be a function of
-		# u*, per Leuning et al., 2008
-	psi <- # Psychrometric constant (66.5 Pa K(-1))
-	B <- H / LE # bowen ratio (H / LE)
-
-
-	# Juant et al., 2007 method ------------------------- ###
-	Kb <- # Stephan-Boltzman constant
-	albedo <- dailyfile[d,21] / dailyfile[d,20] # Rg_out / Rg
-	emissivity <- -0.16 * albedo + 0.99
-	t_s <- (dailyfile[d,23] / (Kb * emissivity) ^(0.25) # RLong_out / (stephan-boltzman * epsilon)^.25
-	t_s <- t_s - 273.15 # convert K to degC
-	ga <- H / (rho * c_p * (t_s - dailyfile[d,4]))
     } 
 
     ### ----------------------------------------------------- ###
