@@ -36,7 +36,11 @@ Icon
 .Spotlight-V100
 .Trashes
 
+# Open office files -- normally I'll just push CSVs to the repo
+*.ods
+
 # Graphics files, that may not have been moved from the scripts folder yet
 *.tif
+*.tiff
 *.jpg
 *.png
