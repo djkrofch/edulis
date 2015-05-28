@@ -6,7 +6,9 @@
 ### 
 ### Author: Dan Krofcheck
 ### Email: djkrofch@unm.edu
-### Date Modified: 23 - Feb - 2015
+### Date Modified: 03 - Mar - 2015
+
+library(reshape)
 
 ### ---------------- Input Data -------------------------- ###
 
@@ -22,14 +24,13 @@ fileType <- 'gapfilled'
 # Gapfilled precip has been an effort since Nov 2014. We now have some first cut efforts
 # at this product. The data are daily at this point, so we will read it in here,
 # and merge it with the daily file after the Ameriflux file processing is complete.
-gapfilled_precip <- 'dailyprecip.csv'
 
 # Constants which are used for various steps of the calulations below
-SECONDS_PER_HOUR <- 60*60
+SECONDS_PER_HALF_HOUR <- 60*30
 LV_WATER <- 2.257e6;      # J Kg-1
 CP_DRY_AIR <- 1006;   # J Kg-1 K-1
 STEFAN_BOLTZMANN_CONST <- 5.670373e-8; #J s-1 m−2 K−4
-GRAMS_C_PER_MICROEINSTEIN<- 12.01 * SECONDS_PER_HOUR / 1000000 # gC per 30 minute flux interval
+GRAMS_C_PER_MICROEINSTEIN<- 12.01 * SECONDS_PER_HALF_HOUR / 1000000 # gC per 30 minute flux interval
 PRIESTLY_TAYLOR_COEFF <- 1.74
 Rd <- 286.9 # dry air gas const; J Kg-1 K-1
 Rw <- 461.5; # water vapor gas const; J Kg-1 K-1
@@ -127,8 +128,19 @@ gamma <- c_p / LV_WATER; # pyschrometric constant
 delta <- calc_delta( T_a )
 rho <- calc_moist_air_density(T_a + 273.15, p, RH)
 eta <- ( rho * c_p * ga ) / 
-      ( 1 - ( PRIESTLY_TAYLOR_COEFF * ( delta / ( delta  + gamma ) ) ) )
+      ( 1 - ( alpha_PTc * ( delta / ( delta  + gamma ) ) ) )
 return(eta)
+}
+
+calc_alphaPT <- function(T_a, H, LE, p, RH){
+c_p = calc_cp( T_a + 273.15, p, RH );
+p_kPa = p/1000
+epsilon = Rd / Rw
+delta <- calc_delta( T_a )
+gamma = (c_p  * p_kPa) / ( LV_WATER * epsilon ) 
+alpha_PTc <- (H + LE) * (( delta + gamma) / delta)
+alpha_PTc <- (1 + (1 / (delta / gamma)) / (1 + (H / LE)))
+return(alpha_PTc)
 }
 
 calc_gc <- function(T,  p, RH, VPD, H, LE){
@@ -147,6 +159,14 @@ gc = gc * conv_factor  # convert gc from m/s to mmol/m2/s
 return(gc)
 }
 
+calc_omega <- function( T_a, p, RH, VPD, H, LE, gc, ga){
+p_kPa = p/1000
+epsilon = Rd / Rw
+delta <- calc_delta( T_a )
+gamma = (c_p  * p_kPa) / ( LV_WATER * epsilon ) 
+omega <- ((delta/gamma) + 1) / (delta/gamma + 1 + (ga/gc))
+return(omega)
+}
 
 # Specify the column names we want to appear in the daily file
 # Currently, edits here require edits inside the dailyfile loop.
@@ -154,7 +174,7 @@ return(gc)
 dailynames <- c('SITE','YEAR','DOY','TA_mean','TA_min','TA_max','FC','FC_day','FC_night','H','LE','PRECIP',
 	'RH','PA','VPD_day','VPD_day_min','VPD_day_max','RNET','PAR','Rg','Rg_out','Rlong_in','Rlong_out',
 	'RE','GPP','GAP_qual','LUE','WUE', 'ET','PET', 'es','ws','albedo','emissivity','surface_temp','delta',
-	'rho','eta','cp','ga','gc')
+	'rho','eta','cp','ga','gc', 'alphaPT', 'omega')
 
 ### ------------------------------------------------------------ ###
 
@@ -164,6 +184,14 @@ fullNames <- paste(dataDir, fileList, sep = '')
 
 # Read in the first Ameriflux file. Note here we skip all the non-data rows when we read it in. This would not be required if we didn't have the extra metadata rows.
 firstFile <- data.frame(read.table(fullNames[1], sep = ',', skip = 5))
+
+# Read in the gapfilled precip data
+# Note here we rename the columns to play nice with the dailyfile site names
+# so that when we merge by site and DOY, alls well.
+#gapfilled_P <- data.frame(read.table(paste(dataDir,gapfilled_precip, sep = ''), sep = ',', head = TRUE))
+#names(gapfilled_P) <- c('TS','Vcm','Vcp','Wjs','Mpj','Mpg','Seg','Sen','Ses','YEAR','DOY')
+#melted_precip <- melt(gapfilled_P, c('TS','YEAR','DOY'))
+#names(melted_precip) <- c('TS','YEAR','DOY','SITE','PRECIP')
 
 # A little trick to deal with the column names for the Ameriflux Files
 colNames <- read.table(fullNames[1], sep = ',', skip = 3, nrows = 1, head = TRUE)
@@ -287,10 +315,16 @@ for(i in 1:length(fileList)){
 	Ts <- calc_Ts(epsilon, PM_interval$Rlong_out)
 	delta <- calc_delta(PM_interval$TA)
 	rho <- calc_moist_air_density(PM_interval$TA + 273.15, PM_interval$PA * 1000, PM_interval$RH)
-	eta <- calc_eta(PM_interval$TA, PM_interval$PA * 1000, PM_interval$RH)
 	c_p <- calc_cp(PM_interval$TA + 273.15, PM_interval$PA * 1000, PM_interval$RH)
 	ga <- calc_ga(PM_interval$TA, PM_interval$PA * 1000, PM_interval$RH, PM_interval$H, Ts)
 	gc <- calc_gc(PM_interval$TA, PM_interval$PA * 1000, PM_interval$RH, PM_interval$VPD, PM_interval$H, Ts)
+	alpha_PTc <- calc_alphaPT(PM_interval$TA, PM_interval$H, PM_interval$LE, PM_interval$PA * 1000, PM_interval$RH)
+	alpha_PTc <- alpha_PTc[which((alpha_PTc > 0) & (alpha_PTc < 5))]
+	eta <- calc_eta(PM_interval$TA, PM_interval$PA * 1000, PM_interval$RH)
+	eta <- eta[which((eta < 200) & (eta > -1000))]
+	omega <- calc_omega(PM_interval$TA, PM_interval$PA * 1000, PM_interval$RH, PM_interval$VPD, PM_interval$H, Ts, ga, gc)
+	ga <- ga[which((ga > 0) & (ga < 0.2))]
+	gc <- gc[which((gc > 0) & (gc < 250))]
 
 	dailyfile[d,31] <- mean(es, na.rm = TRUE)
 	dailyfile[d,32] <- mean(ws, na.rm = TRUE)
@@ -303,6 +337,8 @@ for(i in 1:length(fileList)){
 	dailyfile[d,39] <- mean(c_p, na.rm = TRUE) 
 	dailyfile[d,40] <- mean(ga, na.rm = TRUE) 
 	dailyfile[d,41] <- mean(gc, na.rm = TRUE) 
+	dailyfile[d,42] <- mean(alpha_PTc, na.rm = TRUE) 
+	dailyfile[d,43] <- mean(omega, na.rm = TRUE) 
 
     } 
 
@@ -319,13 +355,12 @@ for(i in 1:length(fileList)){
     AmfluxFile <- rbind(AmfluxFile, fluxfile)
 }
 
+
+
 # Finally, write the result to a single csv. Here, the row.names argument stops R from including a pesky first column of numerical row numbers.. which is of no use for us. This will be a large text file, ane may take some time to write.
-#message('Writing concatenated 30 minute file', "\r", appendLF=FALSE)
-#write.table(AmfluxFile, 'AllAmfluxData_30min_Reichstein.csv', sep = ',', row.names = FALSE)
+message('Writing concatenated 30 minute file', "\r", appendLF=FALSE)
+write.table(AmfluxFile, 'AllAmfluxData_30min_Reichstein.csv', sep = ',', row.names = FALSE)
 message('Writing concatenated daily file', "\r", appendLF=FALSE)
 write.table(AmfluxFileDaily, paste(outDir, 'AllAmfluxData_Daily_Reichstein.csv', sep = ''), sep = ',', row.names = FALSE)
-
 ## end
-AmfluxFileDaily$ga[AmfluxFileDaily$ga > 2] <- NaN
-AmfluxFileDaily$ga[AmfluxFileDaily$ga < -0.1] <- NaN
-ggplot(AmfluxFileDaily, aes(DOY, ga)) + geom_point() + facet_grid(SITE~YEAR) + theme_bw()
+
