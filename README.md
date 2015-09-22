@@ -4,7 +4,7 @@ This is a small repository of data analysis scripts written in R and Python, str
 
 ## WIP
 
-Currently, this repository serves a backup only purpose, and over time the contents will grow and evolve, ultimatley serving as a distribution source for small analysys projects. 
+Currently, this repository serves a backup only purpose, and over time the contents will grow and evolve, ultimatley serving as a distribution source for small analysis projects. 
 
 ## amfluxDataReader.R
 
