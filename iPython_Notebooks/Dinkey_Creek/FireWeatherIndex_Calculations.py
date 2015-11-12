@@ -12,17 +12,17 @@ from scipy import stats
 class DynamicFireWeatherCalculations:
 
 
-    def __init__(self, inputname, initvalues, outputname): 
+    def __init__(self, inputname, initvalues, outputname, fireregion): 
 
         ''' inputs '''
         
-        self.file = 'sample_input_py.csv' # input file name here - weather variables
-        self.file2 = 'sample_startingvalues_py.csv' # input file name here - starting values
+        self.file = inputname # input file name here - weather variables
+        self.file2 = initvalues # input file name here - starting values
         
         self.number_rows = 0 # number of rows included in output file (updated during simulation)
         self.number_columns = 7 # number of columns included in output file (does not change)
-        self.output_file = 'FWI_input_to_landis.csv'
-        self.ecoregion_default = 'all' # change as needed
+        self.output_file = outputname
+        self.ecoregion_default = fireregion # change as needed
 
         self.year = []       
         self.julian_date = []     
