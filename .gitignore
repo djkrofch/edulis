@@ -44,3 +44,11 @@ Icon
 *.tiff
 *.jpg
 *.png
+iPython_Notebooks/.ipynb_checkpoints/CopyDirs_Dunbar-checkpoint.ipynb
+iPython_Notebooks/.ipynb_checkpoints/MODIS_Data-checkpoint.ipynb
+iPython_Notebooks/Dinkey_Creek/.ipynb_checkpoints/DinkeyCreek-checkpoint.ipynb
+iPython_Notebooks/Dinkey_Creek/FWI_input_to_landis.csv
+iPython_Notebooks/Dinkey_Creek/.ipynb_checkpoints/DinkeyCreek-checkpoint.ipynb
+iPython_Notebooks/Dinkey_Creek/FireWeatherIndex_Calculations.pyc
+iPython_Notebooks/Dinkey_Creek/.ipynb_checkpoints/FireWeather_Prep-checkpoint.ipynb
+iPython_Notebooks/.ipynb_checkpoints/NMEG_Analysis_Plots-checkpoint.ipynb
