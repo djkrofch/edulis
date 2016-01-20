@@ -54,3 +54,5 @@ iPython_Notebooks/Dinkey_Creek/.ipynb_checkpoints/FireWeather_Prep-checkpoint.ip
 iPython_Notebooks/.ipynb_checkpoints/NMEG_Analysis_Plots-checkpoint.ipynb
 iPython_Notebooks/Dinkey_Creek/.ipynb_checkpoints/DinkeyCreek-checkpoint.ipynb
 *.ipynb
+*.pdf
+iPython_Notebooks/MsTMIP_Data_Prep.ipynb
